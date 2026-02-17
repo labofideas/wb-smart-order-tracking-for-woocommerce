@@ -247,7 +247,7 @@ final class Admin_Order {
 			}
 
 			$order->delete_meta_data( '_wb_tracking_items' );
-			$order->save();
+			$order->save_meta_data();
 			return;
 		}
 
@@ -256,7 +256,7 @@ final class Admin_Order {
 		}
 
 		$order->update_meta_data( '_wb_tracking_items', $items );
-		$order->save();
+		$order->save_meta_data();
 		do_action( 'wbsot_tracking_added', $order_id, $items );
 
 		$first           = $items[0];
