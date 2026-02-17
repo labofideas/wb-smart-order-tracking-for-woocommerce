@@ -420,6 +420,13 @@ final class Settings_Page extends \WC_Settings_Page {
 			#wbsot-settings-hero .wbsot-badge{display:inline-block;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.16);font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px;}
 			#wbsot-settings-hero h3{margin:0 0 6px;font-size:24px;line-height:1.25;color:#fff;}
 			#wbsot-settings-hero p{margin:0;color:rgba(255,255,255,.88);font-size:14px;}
+			#wbsot-health{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 16px;}
+			#wbsot-health .wbsot-health-card{background:#fff;border:1px solid var(--wbsot-border);border-radius:14px;padding:14px 14px 12px;box-shadow:var(--wbsot-shadow);}
+			#wbsot-health .wbsot-health-label{display:block;color:#667890;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;}
+			#wbsot-health .wbsot-health-value{display:block;color:#172133;font-size:16px;font-weight:700;line-height:1.25;}
+			#wbsot-health .wbsot-health-value[data-tone=\"good\"]{color:#0f7a3d;}
+			#wbsot-health .wbsot-health-value[data-tone=\"warn\"]{color:#9a5d00;}
+			#wbsot-health .wbsot-health-value[data-tone=\"neutral\"]{color:#172133;}
 			body.woocommerce_page_wc-settings.wbsot-settings-screen .form-table{background:var(--wbsot-card);border:1px solid var(--wbsot-border);border-radius:16px;overflow:hidden;box-shadow:var(--wbsot-shadow);}
 			body.woocommerce_page_wc-settings.wbsot-settings-screen .form-table td, body.woocommerce_page_wc-settings.wbsot-settings-screen .form-table th{padding:16px 18px;}
 			body.woocommerce_page_wc-settings.wbsot-settings-screen .form-table tr{border-top:1px solid #eef2f8;}
@@ -427,6 +434,7 @@ final class Settings_Page extends \WC_Settings_Page {
 			body.woocommerce_page_wc-settings.wbsot-settings-screen .form-table th{width:280px;color:var(--wbsot-text);font-weight:600;}
 			body.woocommerce_page_wc-settings.wbsot-settings-screen .form-table td{color:var(--wbsot-muted);}
 			body.woocommerce_page_wc-settings.wbsot-settings-screen .form-table .description{color:var(--wbsot-muted);font-size:12px;}
+			body.woocommerce_page_wc-settings.wbsot-settings-screen .wbsot-help-dot{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:999px;border:none;background:#d9e7ff;color:#124fb6;font-size:11px;font-weight:700;line-height:1;cursor:help;padding:0;margin-left:6px;vertical-align:middle;}
 			body.woocommerce_page_wc-settings.wbsot-settings-screen .form-table input[type=\"text\"],body.woocommerce_page_wc-settings.wbsot-settings-screen .form-table input[type=\"password\"],body.woocommerce_page_wc-settings.wbsot-settings-screen .form-table input[type=\"number\"],body.woocommerce_page_wc-settings.wbsot-settings-screen .form-table select{min-height:38px;border-radius:10px;border:1px solid #cfd9e6;padding:0 12px;}
 			body.woocommerce_page_wc-settings.wbsot-settings-screen .form-table input[type=\"text\"]:focus,body.woocommerce_page_wc-settings.wbsot-settings-screen .form-table input[type=\"password\"]:focus,body.woocommerce_page_wc-settings.wbsot-settings-screen .form-table input[type=\"number\"]:focus,body.woocommerce_page_wc-settings.wbsot-settings-screen .form-table select:focus{border-color:var(--wbsot-primary);box-shadow:0 0 0 3px rgba(30,111,255,.15);}
 			body.woocommerce_page_wc-settings.wbsot-settings-screen .form-table input[type=\"checkbox\"]{appearance:none;-webkit-appearance:none;width:42px;height:24px;border-radius:999px;background:#c6d2e4;position:relative;border:none;box-shadow:inset 0 0 0 1px rgba(0,0,0,.04);margin:0 10px 0 0;vertical-align:middle;cursor:pointer;transition:background .2s ease;}
@@ -436,6 +444,7 @@ final class Settings_Page extends \WC_Settings_Page {
 			body.woocommerce_page_wc-settings.wbsot-settings-screen p.submit{position:sticky;bottom:0;background:rgba(246,248,251,.96);backdrop-filter:blur(6px);padding:14px 0 4px;margin:0;}
 			body.woocommerce_page_wc-settings.wbsot-settings-screen p.submit .button-primary{min-height:40px;padding:0 16px;border-radius:10px;font-weight:600;}
 			@media (max-width: 960px){
+				#wbsot-health{grid-template-columns:1fr 1fr;}
 				body.woocommerce_page_wc-settings.wbsot-settings-screen .form-table th,body.woocommerce_page_wc-settings.wbsot-settings-screen .form-table td{display:block;width:100%;padding:12px 14px;}
 				body.woocommerce_page_wc-settings.wbsot-settings-screen .form-table th{padding-bottom:4px;}
 			}'
@@ -445,16 +454,101 @@ final class Settings_Page extends \WC_Settings_Page {
 		wp_enqueue_script( 'wbsot-admin-settings' );
 		wp_add_inline_script(
 			'wbsot-admin-settings',
+			'window.wbsotSettingsMeta = ' . wp_json_encode( $this->settings_screen_meta() ) . ';',
+			'before'
+		);
+		wp_add_inline_script(
+			'wbsot-admin-settings',
 			"(function($){
 				'use strict';
 				$(function(){
 					$('body').addClass('wbsot-settings-screen');
 					var hero = '<div id=\"wbsot-settings-hero\"><span class=\"wbsot-badge\">Premium Controls</span><h3>WB Smart Order Tracking Settings</h3><p>Fine-tune customer tracking experience, automation, and carrier sync with production-ready controls.</p></div>';
+					var tips = {
+						wbsot_public_tracking_rate_limit: 'Recommended 10-30 for most stores. Lower values are stricter against abuse.',
+						wbsot_csv_strict_mode: 'Enable for safer imports when staff use mixed CSV sources.',
+						wbsot_csv_allowed_statuses: 'Only used when strict mode is ON.',
+						wbsot_aftership_live_requests: 'Keep OFF in staging/testing to avoid accidental API usage.',
+						wbsot_shiprocket_live_requests: 'Keep OFF in staging/testing to avoid accidental API usage.',
+						wbsot_sync_batch_size: 'Higher batch sizes process faster but increase server load.'
+					};
+					var meta = window.wbsotSettingsMeta || null;
+					function esc(value){ return $('<div/>').text(String(value || '')).html(); }
+					function buildHealthCard(label, value, tone){
+						return '<div class=\"wbsot-health-card\"><span class=\"wbsot-health-label\">' + esc(label) + '</span><span class=\"wbsot-health-value\" data-tone=\"' + esc(tone) + '\">' + esc(value) + '</span></div>';
+					}
 					if (!$('#wbsot-settings-hero').length) {
 						$('#mainform').prepend(hero);
 					}
+					if (meta && !$('#wbsot-health').length) {
+						var health = '<div id=\"wbsot-health\">';
+						health += buildHealthCard('Plugin Status', meta.plugin_status, meta.plugin_status_tone);
+						health += buildHealthCard('Public Tracking', meta.public_tracking, meta.public_tracking_tone);
+						health += buildHealthCard('Sync Queue', meta.sync_queue, meta.sync_queue_tone);
+						health += buildHealthCard('Next Sync', meta.next_sync, meta.next_sync_tone);
+						health += '</div>';
+						$('#wbsot-settings-hero').after(health);
+					}
+					$.each(tips, function(fieldId, helpText){
+						var $field = $('#' + fieldId);
+						if (!$field.length) {
+							return;
+						}
+						var $th = $field.closest('tr').find('th');
+						if (!$th.length || $th.find('.wbsot-help-dot').length) {
+							return;
+						}
+						$th.append('<button type=\"button\" class=\"wbsot-help-dot\" title=\"' + esc(helpText) + '\" aria-label=\"' + esc(helpText) + '\">?</button>');
+					});
 				});
 			})(jQuery);"
+		);
+	}
+
+	/**
+	 * Build settings tab health summary for the premium header.
+	 *
+	 * @return array<string, string>
+	 */
+	private function settings_screen_meta(): array {
+		$event = wp_get_scheduled_event( 'wbsot_status_sync_event' );
+		$queue = get_option( 'wbsot_sync_queue', array() );
+		$count = 0;
+
+		if ( is_array( $queue ) ) {
+			$count = count( array_filter( array_map( 'absint', $queue ) ) );
+		}
+
+		$plugin_enabled  = Settings::is_enabled();
+		$public_enabled  = Settings::public_tracking_enabled();
+		$next_sync_label = __( 'Not scheduled', 'wb-smart-order-tracking-for-woocommerce' );
+		$next_sync_tone  = 'warn';
+
+		if ( $event && isset( $event->timestamp ) && is_numeric( $event->timestamp ) ) {
+			$timestamp       = (int) $event->timestamp;
+			$next_sync_label = $timestamp <= time()
+				? __( 'Due now', 'wb-smart-order-tracking-for-woocommerce' )
+				: sprintf(
+					/* translators: %s: relative time string such as "in 10 minutes". */
+					__( 'In %s', 'wb-smart-order-tracking-for-woocommerce' ),
+					human_time_diff( time(), $timestamp )
+				);
+			$next_sync_tone = $timestamp <= time() ? 'warn' : 'good';
+		}
+
+		return array(
+			'plugin_status'      => $plugin_enabled ? __( 'Enabled', 'wb-smart-order-tracking-for-woocommerce' ) : __( 'Disabled', 'wb-smart-order-tracking-for-woocommerce' ),
+			'plugin_status_tone' => $plugin_enabled ? 'good' : 'warn',
+			'public_tracking'    => $public_enabled ? __( 'Active', 'wb-smart-order-tracking-for-woocommerce' ) : __( 'Inactive', 'wb-smart-order-tracking-for-woocommerce' ),
+			'public_tracking_tone' => $public_enabled ? 'good' : 'warn',
+			'sync_queue'         => $count > 0 ? sprintf(
+				/* translators: %d: number of queued orders. */
+				_n( '%d order pending', '%d orders pending', $count, 'wb-smart-order-tracking-for-woocommerce' ),
+				$count
+			) : __( 'Queue empty', 'wb-smart-order-tracking-for-woocommerce' ),
+			'sync_queue_tone'    => $count > 0 ? 'neutral' : 'good',
+			'next_sync'          => $next_sync_label,
+			'next_sync_tone'     => $next_sync_tone,
 		);
 	}
 
