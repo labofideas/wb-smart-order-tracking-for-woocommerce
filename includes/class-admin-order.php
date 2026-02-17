@@ -7,6 +7,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 final class Admin_Order {
 	/**
+	 * Prevent duplicate processing when multiple save hooks fire in one request.
+	 *
+	 * @var bool
+	 */
+	private bool $tracking_saved_for_request = false;
+
+	/**
 	 * Register hooks.
 	 *
 	 * @return void
@@ -14,6 +21,30 @@ final class Admin_Order {
 	public function register(): void {
 		add_action( 'add_meta_boxes', array( $this, 'register_meta_box' ) );
 		add_action( 'woocommerce_process_shop_order_meta', array( $this, 'save_tracking_meta' ), 10, 2 );
+		add_action( 'admin_init', array( $this, 'maybe_save_tracking_from_hpos_request' ), 20 );
+	}
+
+	/**
+	 * Fallback save path for HPOS edit screen requests where Woo hooks may not fire consistently.
+	 *
+	 * @return void
+	 */
+	public function maybe_save_tracking_from_hpos_request(): void {
+		$request_method = strtoupper( (string) filter_input( INPUT_SERVER, 'REQUEST_METHOD', FILTER_SANITIZE_FULL_SPECIAL_CHARS ) );
+
+		if ( 'POST' !== $request_method ) {
+			return;
+		}
+
+		$page   = sanitize_key( (string) filter_input( INPUT_GET, 'page', FILTER_SANITIZE_FULL_SPECIAL_CHARS ) );
+		$action = sanitize_key( (string) filter_input( INPUT_GET, 'action', FILTER_SANITIZE_FULL_SPECIAL_CHARS ) );
+		$id     = absint( (string) filter_input( INPUT_GET, 'id', FILTER_SANITIZE_NUMBER_INT ) );
+
+		if ( 'wc-orders' !== $page || 'edit' !== $action || $id <= 0 ) {
+			return;
+		}
+
+		$this->save_tracking_meta( $id );
 	}
 
 	/**
@@ -176,6 +207,10 @@ final class Admin_Order {
 	 * @return void
 	 */
 	public function save_tracking_meta( int $order_id, $context = null ): void {
+		if ( $this->tracking_saved_for_request ) {
+			return;
+		}
+
 		if ( ! Settings::is_enabled() ) {
 			return;
 		}
@@ -203,9 +238,20 @@ final class Admin_Order {
 			return;
 		}
 
+		$this->tracking_saved_for_request = true;
+		$current_items                    = self::get_tracking_items( $order_id );
+
 		if ( empty( $items ) ) {
+			if ( empty( $current_items ) ) {
+				return;
+			}
+
 			$order->delete_meta_data( '_wb_tracking_items' );
 			$order->save();
+			return;
+		}
+
+		if ( $items === $current_items ) {
 			return;
 		}
 
