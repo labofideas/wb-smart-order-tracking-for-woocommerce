@@ -49,6 +49,8 @@ final class CSV_Import {
 		$imported = absint( (string) filter_input( INPUT_GET, 'imported', FILTER_SANITIZE_NUMBER_INT ) );
 		$failed   = absint( (string) filter_input( INPUT_GET, 'failed', FILTER_SANITIZE_NUMBER_INT ) );
 		$dry_run  = absint( (string) filter_input( INPUT_GET, 'dry_run', FILTER_SANITIZE_NUMBER_INT ) );
+		$error_token = sanitize_key( (string) filter_input( INPUT_GET, 'error_token', FILTER_SANITIZE_FULL_SPECIAL_CHARS ) );
+		$row_errors  = $this->consume_row_errors( $error_token );
 
 		echo '<div class="wrap">';
 		echo '<h1>' . esc_html__( 'WB Order Tracking CSV Import', 'wb-smart-order-tracking-for-woocommerce' ) . '</h1>';
@@ -69,14 +71,39 @@ final class CSV_Import {
 			echo '<div class="notice notice-warning"><p>' . esc_html__( 'CSV import is currently disabled in plugin settings.', 'wb-smart-order-tracking-for-woocommerce' ) . '</p></div>';
 		}
 
+		$strict_mode = Settings::csv_strict_mode_enabled();
+		$statuses    = array_map( 'sanitize_text_field', Settings::csv_allowed_statuses() );
+
+		echo '<div class="notice notice-info"><p><strong>' . esc_html__( 'Import Rules', 'wb-smart-order-tracking-for-woocommerce' ) . '</strong></p><ul style="list-style:disc;margin-left:20px;">';
+		echo '<li>' . esc_html__( 'CSV must include: Order ID, Tracking number, Carrier, Tracking URL (optional), Shipped date (optional).', 'wb-smart-order-tracking-for-woocommerce' ) . '</li>';
+		echo '<li>' . esc_html__( 'Use Dry run to validate CSV before saving data.', 'wb-smart-order-tracking-for-woocommerce' ) . '</li>';
+		if ( $strict_mode ) {
+			/* translators: %s: allowed order statuses list. */
+			echo '<li>' . esc_html( sprintf( __( 'Strict mode is enabled. Allowed order statuses: %s.', 'wb-smart-order-tracking-for-woocommerce' ), implode( ', ', $statuses ) ) ) . '</li>';
+			echo '<li>' . esc_html__( 'Rows with unknown carriers are rejected in strict mode.', 'wb-smart-order-tracking-for-woocommerce' ) . '</li>';
+		} else {
+			echo '<li>' . esc_html__( 'Strict mode is disabled. Unknown carriers can be imported as custom carriers.', 'wb-smart-order-tracking-for-woocommerce' ) . '</li>';
+		}
+		echo '</ul></div>';
+
+		if ( ! empty( $row_errors ) ) {
+			echo '<h2>' . esc_html__( 'Row Errors', 'wb-smart-order-tracking-for-woocommerce' ) . '</h2>';
+			echo '<table class="widefat striped" style="max-width:900px;">';
+			echo '<thead><tr><th>' . esc_html__( 'Row', 'wb-smart-order-tracking-for-woocommerce' ) . '</th><th>' . esc_html__( 'Reason', 'wb-smart-order-tracking-for-woocommerce' ) . '</th></tr></thead><tbody>';
+			foreach ( $row_errors as $row_error ) {
+				echo '<tr><td>' . esc_html( (string) $row_error['row'] ) . '</td><td>' . esc_html( $row_error['reason'] ) . '</td></tr>';
+			}
+			echo '</tbody></table>';
+		}
+
 		echo '<p>' . esc_html__( 'Expected columns: Order ID, Tracking number, Carrier, Tracking URL (optional), Shipped date (optional).', 'wb-smart-order-tracking-for-woocommerce' ) . '</p>';
 		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" enctype="multipart/form-data">';
-			echo '<input type="hidden" name="action" value="wbsot_import_csv" />';
-			wp_nonce_field( 'wbsot_import_csv', 'wbsot_import_nonce' );
-			echo '<input type="file" name="wbsot_csv" accept=".csv,text/csv" required /> ';
-			echo '<label style="margin-left:10px;"><input type="checkbox" name="wbsot_dry_run" value="1" /> ' . esc_html__( 'Dry run (validate only)', 'wb-smart-order-tracking-for-woocommerce' ) . '</label> ';
-			submit_button( __( 'Import CSV', 'wb-smart-order-tracking-for-woocommerce' ), 'primary', 'submit', false );
-			echo '</form>';
+		echo '<input type="hidden" name="action" value="wbsot_import_csv" />';
+		wp_nonce_field( 'wbsot_import_csv', 'wbsot_import_nonce' );
+		echo '<input type="file" name="wbsot_csv" accept=".csv,text/csv" required /> ';
+		echo '<label style="margin-left:10px;"><input type="checkbox" name="wbsot_dry_run" value="1" /> ' . esc_html__( 'Dry run (validate only)', 'wb-smart-order-tracking-for-woocommerce' ) . '</label> ';
+		submit_button( __( 'Import CSV', 'wb-smart-order-tracking-for-woocommerce' ), 'primary', 'submit', false );
+		echo '</form>';
 		echo '</div>';
 	}
 
@@ -117,6 +144,7 @@ final class CSV_Import {
 
 		$imported = 0;
 		$failed   = 0;
+		$errors   = array();
 		$header   = array_shift( $rows );
 
 		if ( ! is_array( $header ) ) {
@@ -125,21 +153,32 @@ final class CSV_Import {
 
 		$map = $this->build_header_map( $header );
 
+		$row_number = 1;
 		foreach ( $rows as $row ) {
+			++$row_number;
 			if ( ! is_array( $row ) || empty( $row ) ) {
 				continue;
 			}
 
-				$result = $this->import_row( $row, $map, $dry_run );
+			$error  = '';
+			$result = $this->import_row( $row, $map, $dry_run, $error );
 
 			if ( $result ) {
 				++$imported;
 			} else {
 				++$failed;
+				if ( '' === $error ) {
+					$error = __( 'Unknown validation error.', 'wb-smart-order-tracking-for-woocommerce' );
+				}
+				$errors[] = array(
+					'row'    => $row_number,
+					'reason' => $error,
+				);
 			}
 		}
 
-		$this->redirect_with_counts( $imported, $failed, $dry_run );
+		$error_token = $this->store_row_errors( $errors );
+		$this->redirect_with_counts( $imported, $failed, $dry_run, $error_token );
 	}
 
 	/**
@@ -292,26 +331,30 @@ final class CSV_Import {
 	 * @param array<string, int> $map Header map.
 	 * @return bool
 	 */
-	private function import_row( array $row, array $map, bool $dry_run = false ): bool {
+	private function import_row( array $row, array $map, bool $dry_run = false, string &$error = '' ): bool {
 		$order_id = absint( $this->cell( $row, $map, array( 'order id', 'order_id' ) ) );
 
 		if ( ! $order_id ) {
+			$error = __( 'Missing or invalid Order ID.', 'wb-smart-order-tracking-for-woocommerce' );
 			return false;
 		}
 
 		$order = wc_get_order( $order_id );
 
 		if ( ! $order ) {
+			$error = __( 'Order not found.', 'wb-smart-order-tracking-for-woocommerce' );
 			return false;
 		}
 
 		if ( Settings::csv_strict_mode_enabled() && ! $this->is_allowed_order_status( (string) $order->get_status() ) ) {
+			$error = __( 'Order status is not allowed by strict mode.', 'wb-smart-order-tracking-for-woocommerce' );
 			return false;
 		}
 
 		$tracking_number = sanitize_text_field( $this->cell( $row, $map, array( 'tracking number', 'tracking_number' ) ) );
 
 		if ( '' === $tracking_number ) {
+			$error = __( 'Missing tracking number.', 'wb-smart-order-tracking-for-woocommerce' );
 			return false;
 		}
 
@@ -323,6 +366,7 @@ final class CSV_Import {
 		}
 
 		if ( Settings::csv_strict_mode_enabled() && '' === $carrier_id ) {
+			$error = __( 'Unknown carrier is not allowed by strict mode.', 'wb-smart-order-tracking-for-woocommerce' );
 			return false;
 		}
 
@@ -353,6 +397,7 @@ final class CSV_Import {
 		}
 
 		if ( empty( $items ) ) {
+			$error = __( 'Tracking item failed validation.', 'wb-smart-order-tracking-for-woocommerce' );
 			return false;
 		}
 
@@ -444,18 +489,83 @@ final class CSV_Import {
 	 * @param int $failed Failed rows.
 	 * @return void
 	 */
-	private function redirect_with_counts( int $imported, int $failed, bool $dry_run = false ): void {
-		$url = add_query_arg(
-			array(
-				'page'     => 'wbsot-import',
-				'imported' => $imported,
-				'failed'   => $failed,
-				'dry_run'  => $dry_run ? 1 : 0,
-			),
-			admin_url( 'admin.php' )
+	private function redirect_with_counts( int $imported, int $failed, bool $dry_run = false, string $error_token = '' ): void {
+		$args = array(
+			'page'     => 'wbsot-import',
+			'imported' => $imported,
+			'failed'   => $failed,
+			'dry_run'  => $dry_run ? 1 : 0,
 		);
+
+		if ( '' !== $error_token ) {
+			$args['error_token'] = $error_token;
+		}
+
+		$url = add_query_arg( $args, admin_url( 'admin.php' ) );
 
 		wp_safe_redirect( $url );
 		exit;
+	}
+
+	/**
+	 * Store row-level import errors in a short-lived transient.
+	 *
+	 * @param array<int, array{row:int,reason:string}> $errors Error rows.
+	 * @return string
+	 */
+	private function store_row_errors( array $errors ): string {
+		if ( empty( $errors ) ) {
+			return '';
+		}
+
+		$user_id = get_current_user_id();
+		if ( ! $user_id ) {
+			return '';
+		}
+
+		$token = sanitize_key( 'err' . wp_generate_password( 12, false, false ) );
+		$key   = 'wbsot_import_errors_' . $user_id . '_' . $token;
+
+		set_transient( $key, array_slice( $errors, 0, 25 ), 15 * MINUTE_IN_SECONDS );
+
+		return $token;
+	}
+
+	/**
+	 * Consume row errors transient for current user.
+	 *
+	 * @param string $token Error token from query arg.
+	 * @return array<int, array{row:int,reason:string}>
+	 */
+	private function consume_row_errors( string $token ): array {
+		if ( '' === $token ) {
+			return array();
+		}
+
+		$user_id = get_current_user_id();
+		if ( ! $user_id ) {
+			return array();
+		}
+
+		$key    = 'wbsot_import_errors_' . $user_id . '_' . sanitize_key( $token );
+		$errors = get_transient( $key );
+		delete_transient( $key );
+
+		if ( ! is_array( $errors ) ) {
+			return array();
+		}
+
+		$normalized = array();
+		foreach ( $errors as $row ) {
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
+			$normalized[] = array(
+				'row'    => absint( (string) ( $row['row'] ?? 0 ) ),
+				'reason' => sanitize_text_field( (string) ( $row['reason'] ?? '' ) ),
+			);
+		}
+
+		return $normalized;
 	}
 }

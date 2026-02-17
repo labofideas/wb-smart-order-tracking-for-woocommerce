@@ -12,6 +12,12 @@ final class Shortcode {
 	 * @var bool
 	 */
 	private static bool $styles_printed = false;
+	/**
+	 * Retry-after seconds for current request, when rate limited.
+	 *
+	 * @var int
+	 */
+	private int $retry_after_seconds = 0;
 
 	/**
 	 * Register hooks.
@@ -65,7 +71,13 @@ final class Shortcode {
 		}
 
 		if ( $this->is_lookup_rate_limited( $email ) ) {
-			echo '<p>' . esc_html__( 'Too many tracking requests. Please wait 15 minutes and try again.', 'wb-smart-order-tracking-for-woocommerce' ) . '</p>';
+			if ( $this->retry_after_seconds > 0 ) {
+				$retry_text = human_time_diff( time(), time() + $this->retry_after_seconds );
+				/* translators: %s: human readable retry time. */
+				echo '<p>' . esc_html( sprintf( __( 'Too many tracking requests. Please try again in %s.', 'wb-smart-order-tracking-for-woocommerce' ), $retry_text ) ) . '</p>';
+			} else {
+				echo '<p>' . esc_html__( 'Too many tracking requests. Please wait and try again.', 'wb-smart-order-tracking-for-woocommerce' ) . '</p>';
+			}
 			return (string) ob_get_clean();
 		}
 
@@ -138,6 +150,7 @@ final class Shortcode {
 	 * @return bool True if rate limited.
 	 */
 	private function is_lookup_rate_limited( string $email ): bool {
+		$this->retry_after_seconds = 0;
 		$window_seconds = (int) apply_filters( 'wbsot_public_tracking_rate_window', 15 * MINUTE_IN_SECONDS );
 		$window_seconds = max( 60, $window_seconds );
 		$max_attempts   = Settings::public_tracking_rate_limit();
@@ -147,12 +160,13 @@ final class Shortcode {
 		$lock_until     = get_transient( $lock_key );
 
 		if ( is_numeric( $lock_until ) && (int) $lock_until > time() ) {
+			$this->retry_after_seconds = max( 0, (int) $lock_until - time() );
 			Security_Events::add(
 				'tracking_lookup_locked',
 				array(
 					'email'    => $email,
 					'ip'       => $ip,
-					'cooldown' => max( 0, (int) $lock_until - time() ),
+					'cooldown' => $this->retry_after_seconds,
 				)
 			);
 			return true;
@@ -168,6 +182,7 @@ final class Shortcode {
 
 		if ( $count >= $max_attempts ) {
 			$cooldown = $this->apply_lockout_escalation( $ip, $window_seconds );
+			$this->retry_after_seconds = $cooldown;
 			Security_Events::add(
 				'tracking_lookup_rate_limited',
 				array(

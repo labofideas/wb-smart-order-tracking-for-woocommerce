@@ -10,9 +10,7 @@ final class Provider_Tools {
 	 * Option key for provider test history.
 	 */
 	private const TEST_RESULTS_OPTION = 'wbsot_provider_test_results';
-	/**
-	 * Register hooks.
-	 */
+
 	/**
 	 * Register hooks.
 	 *
@@ -24,10 +22,10 @@ final class Provider_Tools {
 		}
 
 		add_action( 'admin_menu', array( $this, 'register_menu' ), 100 );
-			add_action( 'admin_post_wbsot_test_provider', array( $this, 'handle_provider_test' ) );
-			add_action( 'admin_post_wbsot_clear_provider_tests', array( $this, 'handle_clear_history' ) );
-			add_action( 'admin_post_wbsot_run_sync_now', array( $this, 'handle_run_sync_now' ) );
-			add_action( 'admin_post_wbsot_clear_security_events', array( $this, 'handle_clear_security_events' ) );
+		add_action( 'admin_post_wbsot_test_provider', array( $this, 'handle_provider_test' ) );
+		add_action( 'admin_post_wbsot_clear_provider_tests', array( $this, 'handle_clear_history' ) );
+		add_action( 'admin_post_wbsot_run_sync_now', array( $this, 'handle_run_sync_now' ) );
+		add_action( 'admin_post_wbsot_clear_security_events', array( $this, 'handle_clear_security_events' ) );
 	}
 
 	/**
@@ -64,21 +62,21 @@ final class Provider_Tools {
 		echo '<h1>' . esc_html__( 'WB Tracking Tools', 'wb-smart-order-tracking-for-woocommerce' ) . '</h1>';
 		echo '<p>' . esc_html__( 'Use these actions to test provider credentials and API reachability before enabling live sync.', 'wb-smart-order-tracking-for-woocommerce' ) . '</p>';
 
-			if ( '' !== $result && '' !== $message ) {
-				$class = 'success' === $result ? 'notice-success' : 'notice-error';
-				echo '<div class="notice ' . esc_attr( $class ) . '"><p>';
-				/* translators: 1: provider key, 2: result message. */
-				echo esc_html( sprintf( __( '%1$s: %2$s', 'wb-smart-order-tracking-for-woocommerce' ), strtoupper( $provider ), $message ) );
-				echo '</p></div>';
-			}
+		if ( '' !== $result && '' !== $message ) {
+			$class = 'success' === $result ? 'notice-success' : 'notice-error';
+			echo '<div class="notice ' . esc_attr( $class ) . '"><p>';
+			/* translators: 1: provider key, 2: result message. */
+			echo esc_html( sprintf( __( '%1$s: %2$s', 'wb-smart-order-tracking-for-woocommerce' ), strtoupper( $provider ), $message ) );
+			echo '</p></div>';
+		}
 
-			$this->render_sync_now_form();
-			$this->render_last_results();
-			$this->render_security_events();
-			$this->render_provider_test_form( 'aftership', __( 'Test AfterShip Connection', 'wb-smart-order-tracking-for-woocommerce' ) );
-			$this->render_provider_test_form( 'shiprocket', __( 'Test Shiprocket Connection', 'wb-smart-order-tracking-for-woocommerce' ) );
-			$this->render_clear_history_form();
-			$this->render_clear_security_form();
+		$this->render_sync_now_form();
+		$this->render_last_results();
+		$this->render_security_events();
+		$this->render_provider_test_form( 'aftership', __( 'Test AfterShip Connection', 'wb-smart-order-tracking-for-woocommerce' ) );
+		$this->render_provider_test_form( 'shiprocket', __( 'Test Shiprocket Connection', 'wb-smart-order-tracking-for-woocommerce' ) );
+		$this->render_clear_history_form();
+		$this->render_clear_security_form();
 
 		echo '</div>';
 	}
@@ -118,7 +116,8 @@ final class Provider_Tools {
 	 * @return void
 	 */
 	private function render_clear_history_form(): void {
-		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" style="margin: 16px 0;">';
+		$confirm = wp_json_encode( __( 'Are you sure you want to clear provider test history?', 'wb-smart-order-tracking-for-woocommerce' ) );
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" style="margin: 16px 0;" onsubmit="return confirm(' . esc_attr( (string) $confirm ) . ');">';
 		echo '<input type="hidden" name="action" value="wbsot_clear_provider_tests" />';
 		wp_nonce_field( 'wbsot_clear_provider_tests', 'wbsot_clear_nonce' );
 		submit_button( __( 'Clear Test History', 'wb-smart-order-tracking-for-woocommerce' ), 'delete', 'submit', false );
@@ -131,7 +130,8 @@ final class Provider_Tools {
 	 * @return void
 	 */
 	private function render_clear_security_form(): void {
-		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" style="margin: 16px 0;">';
+		$confirm = wp_json_encode( __( 'Are you sure you want to clear security events?', 'wb-smart-order-tracking-for-woocommerce' ) );
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" style="margin: 16px 0;" onsubmit="return confirm(' . esc_attr( (string) $confirm ) . ');">';
 		echo '<input type="hidden" name="action" value="wbsot_clear_security_events" />';
 		wp_nonce_field( 'wbsot_clear_security_events', 'wbsot_security_nonce' );
 		submit_button( __( 'Clear Security Log', 'wb-smart-order-tracking-for-woocommerce' ), 'delete', 'submit', false );
