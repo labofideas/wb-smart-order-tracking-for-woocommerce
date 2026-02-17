@@ -490,15 +490,15 @@ final class Settings_Page extends \WC_Settings_Page {
 						$('#wbsot-settings-hero').after(health);
 					}
 					$.each(tips, function(fieldId, helpText){
-						var $field = $('#' + fieldId);
-						if (!$field.length) {
+						var \$field = \$('#' + fieldId);
+						if (!\$field.length) {
 							return;
 						}
-						var $th = $field.closest('tr').find('th');
-						if (!$th.length || $th.find('.wbsot-help-dot').length) {
+						var \$th = \$field.closest('tr').find('th');
+						if (!\$th.length || \$th.find('.wbsot-help-dot').length) {
 							return;
 						}
-						$th.append('<button type=\"button\" class=\"wbsot-help-dot\" title=\"' + esc(helpText) + '\" aria-label=\"' + esc(helpText) + '\">?</button>');
+						\$th.append('<button type=\"button\" class=\"wbsot-help-dot\" title=\"' + esc(helpText) + '\" aria-label=\"' + esc(helpText) + '\">?</button>');
 					});
 				});
 			})(jQuery);"
